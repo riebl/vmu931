@@ -55,6 +55,7 @@ struct Status
     int output_rate() const;
 
     std::string streaming() const;
+    bool is_streaming(char) const;
 };
 
 } // namespace vmu931

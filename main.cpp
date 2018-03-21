@@ -1,5 +1,6 @@
 #include <iostream>
 #include <boost/asio.hpp>
+#include "vmu931_commands.hpp"
 #include "vmu931_sensor.hpp"
 #include "vmu931_types.hpp"
 
@@ -38,7 +39,9 @@ int main()
             << " - output rate: " << status.output_rate() << " Hz\n";
     });
 
-    io_service.post([&sensor]() { sensor.send_command('s'); });
+    io_service.post([&sensor]() {
+            sensor.set_streams({vmu931::commands::Heading, vmu931::commands::EulerAngles});
+    });
 
     std::cout << "Start reading VMU931 sensor stream...\n";
     io_service.run();

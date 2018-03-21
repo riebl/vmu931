@@ -1,9 +1,23 @@
 #include "vmu931_types.hpp"
 #include "vmu931_commands.hpp"
 #include <cassert>
+#include <unordered_map>
 
 namespace vmu931
 {
+namespace
+{
+
+static const std::unordered_map<char, uint32_t> stream_bits {
+    {commands::Accelerometers, 0x01},
+    {commands::Gyroscopes, 0x02},
+    {commands::Quaternions, 0x04},
+    {commands::Magnetometers, 0x08},
+    {commands::EulerAngles, 0x10},
+    {commands::Heading, 0x40}
+};
+
+} // namespace
 
 int Status::resolution_gyroscopes() const
 {
@@ -65,25 +79,22 @@ int Status::output_rate() const
 std::string Status::streaming() const
 {
     std::string streams;
-    if (data_currently_streaming & 0x01) {
-        streams.push_back(commands::Accelerometers);
-    }
-    if (data_currently_streaming & 0x02) {
-        streams.push_back(commands::Gyroscopes);
-    }
-    if (data_currently_streaming & 0x04) {
-        streams.push_back(commands::Quaternions);
-    }
-    if (data_currently_streaming & 0x08) {
-        streams.push_back(commands::Magnetometers);
-    }
-    if (data_currently_streaming & 0x10) {
-        streams.push_back(commands::EulerAngles);
-    }
-    if (data_currently_streaming & 0x40) {
-        streams.push_back(commands::Heading);
+    for (auto& stream_bit : stream_bits) {
+        if (data_currently_streaming & stream_bit.second) {
+            streams.push_back(stream_bit.first);
+        }
     }
     return streams;
+}
+
+bool Status::is_streaming(char s) const
+{
+    auto found = stream_bits.find(s);
+    if (found != stream_bits.end()) {
+        return data_currently_streaming & found->second;
+    } else {
+        return false;
+    }
 }
 
 } // namespace vmu931

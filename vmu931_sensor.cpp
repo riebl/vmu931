@@ -59,7 +59,7 @@ T read_4d(const uint8_t* ptr)
 }
 
 Sensor::Sensor(boost::asio::serial_port&& port) :
-    m_serial_port(std::move(port)), m_filled(0)
+    m_serial_port(std::move(port)), m_timer(m_serial_port.get_io_service()), m_filled(0)
 {
     read();
 }
@@ -69,18 +69,48 @@ void Sensor::read()
     assert(m_buffer.size() >= m_filled);
     uint8_t* bufptr = m_buffer.data() + m_filled;
     std::size_t buflen = m_buffer.size() - m_filled;
+
+    m_timer.expires_from_now(boost::posix_time::milliseconds(10));
+    m_timer.async_wait([this](const boost::system::error_code& ec) {
+        if (!ec && m_command.size() > 0) {
+            m_serial_port.cancel();
+            write();
+        }
+    });
+
+    assert(buflen > 0);
     m_serial_port.async_read_some(boost::asio::buffer(bufptr, buflen),
         [this](const boost::system::error_code& ec, std::size_t bytes_transferred) {
             if (!ec) {
                 m_filled += bytes_transferred;
-                parse();
+                while (parse()) {}
+                if (m_command.empty()) {
+                    read();
+                } else {
+                    m_timer.cancel();
+                    write();
+                }
+            }
+        });
+}
+
+void Sensor::write()
+{
+    boost::asio::async_write(m_serial_port, boost::asio::buffer(m_command),
+        [this](const boost::system::error_code& ec, std::size_t bytes_transferred) {
+            if (!ec) {
+                assert(bytes_transferred == m_command.size());
+                m_command.clear();
+                read();
+            } else if (ec == boost::asio::error::operation_aborted) {
                 read();
             }
         });
 }
 
-void Sensor::parse()
+bool Sensor::parse()
 {
+    bool parsed = false;
     const uint8_t* bufend = m_buffer.data() + m_filled;
     const uint8_t* msg = nullptr;
     for (const uint8_t* ptr = m_buffer.data(); ptr < bufend; ++ptr) {
@@ -91,25 +121,32 @@ void Sensor::parse()
     }
 
     if (msg) {
-        const std::size_t len = bufend - msg;
-        if (len < 3 || len < msg[1]) {
-            trim(msg + 1);
-        } else if (msg[0] == 0x01 && msg[len - 1] == 0x04) {
-            parse_data(msg[2], &msg[3], &msg[len - 1]);
-            trim(msg + len);
-        } else if (msg[0] == 0x02 && msg[len - 1] == 0x03) {
-            if (m_string) {
-                std::string str;
-                str.assign(&msg[3], &msg[len - 1]);
-                m_string(str);
-            }
-            trim(msg + len);
+        const std::size_t buflen = bufend - msg;
+        if (buflen < 2 || buflen < msg[1]) {
+            trim(msg);
         } else {
-            trim(msg + 1);
+            const auto msglen = msg[1];
+            if (msg[0] == 0x01 && msg[msglen - 1] == 0x04) {
+                parse_data(msg[2], &msg[3], &msg[msglen - 1]);
+                trim(msg + msglen);
+                parsed = true;
+            } else if (msg[0] == 0x02 && msg[msglen - 1] == 0x03) {
+                if (m_string) {
+                    std::string str;
+                    str.assign(&msg[3], &msg[msglen - 1]);
+                    m_string(str);
+                }
+                trim(msg + msglen);
+                parsed = true;
+            } else {
+                trim(msg + 1);
+            }
         }
     } else {
         m_filled = 0;
     }
+
+    return parsed;
 }
 
 void Sensor::trim(const uint8_t* ptr)
@@ -139,21 +176,24 @@ void Sensor::parse_data(char type, const uint8_t* begin, const uint8_t* end)
         heading.timestamp = vmu931::read<uint32_t>(begin);
         heading.heading = vmu931::read<float>(begin + 4);
         m_heading(heading);
-    } else if (type == commands::Status && len == 7 && m_status) {
+    } else if (type == commands::Status && len == 7) {
         vmu931::Status status;
         status.sensors_status = vmu931::read<uint8_t>(begin);
         status.sensors_resolution = vmu931::read<uint8_t>(begin + 1);
         status.low_output_rate_status = vmu931::read<uint8_t>(begin + 2);
         status.data_currently_streaming = vmu931::read<uint32_t>(begin + 3);
-        m_status(status);
+        if (m_pending_streams) {
+            toggle_streams(status);
+        } else if (m_status) {
+            m_status(status);
+        }
     }
 }
 
-bool Sensor::send_command(char command)
+void Sensor::send_command(char command)
 {
-    std::string command_str("var");
-    command_str.push_back(command);
-    return boost::asio::write(m_serial_port, boost::asio::buffer(command_str)) == command_str.size();
+    m_command.append("var");
+    m_command.push_back(command);
 }
 
 void Sensor::register_sink(AccelerometersSink handler)
@@ -194,6 +234,27 @@ void Sensor::register_sink(StatusSink handler)
 void Sensor::register_sink(StringSink handler)
 {
     m_string = handler;
+}
+
+void Sensor::set_streams(const std::unordered_set<char>& streams)
+{
+    m_pending_streams = streams;
+    send_command(commands::Status);
+}
+
+void Sensor::toggle_streams(const Status& status)
+{
+    if (m_pending_streams) {
+        for (char possible_stream : commands::Data)
+        {
+            const bool want_stream = m_pending_streams->count(possible_stream);
+            const bool has_stream = status.is_streaming(possible_stream);
+            if (want_stream != has_stream) {
+                send_command(possible_stream);
+            }
+        }
+        m_pending_streams = boost::none;
+    }
 }
 
 } // namespace vmu931

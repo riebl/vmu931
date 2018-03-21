@@ -1,6 +1,8 @@
 #ifndef VMU931_COMMANDS_HPP_WIUGMQHB
 #define VMU931_COMMANDS_HPP_WIUGMQHB
 
+#include <unordered_set>
+
 namespace vmu931
 {
 namespace commands
@@ -13,6 +15,10 @@ constexpr char Magnetometers ='c';
 constexpr char Quaternions = 'q';
 constexpr char EulerAngles = 'e';
 constexpr char Heading = 'h';
+
+static const std::unordered_set<char> Data {
+    Accelerometers, Gyroscopes, Magnetometers, Quaternions, EulerAngles, Heading
+};
 
 // misc commands
 constexpr char SelfTest = 't';

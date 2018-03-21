@@ -4,7 +4,10 @@
 #include <array>
 #include <functional>
 #include <string>
+#include <unordered_set>
+#include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/serial_port.hpp>
+#include <boost/optional/optional.hpp>
 #include "vmu931_types.hpp"
 
 namespace vmu931
@@ -23,7 +26,7 @@ public:
     using StringSink = std::function<void(std::string)>;
 
     Sensor(boost::asio::serial_port&&);
-    bool send_command(char);
+    void send_command(char);
     void register_sink(AccelerometersSink);
     void register_sink(GyroscopesSink);
     void register_sink(MagnetometersSink);
@@ -32,16 +35,22 @@ public:
     void register_sink(HeadingSink);
     void register_sink(StatusSink);
     void register_sink(StringSink);
+    void set_streams(const std::unordered_set<char>&);
 
 private:
     void read();
-    void parse();
+    void write();
+    bool parse();
     void trim(const uint8_t*);
     void parse_data(char type, const uint8_t* begin, const uint8_t* end);
+    void toggle_streams(const Status&);
 
     boost::asio::serial_port m_serial_port;
-    std::array<uint8_t, 260> m_buffer;
+    boost::asio::deadline_timer m_timer;
+    std::array<uint8_t, 256> m_buffer;
     std::size_t m_filled;
+    std::string m_command;
+    boost::optional<std::unordered_set<char>> m_pending_streams;
 
     AccelerometersSink m_accel;
     GyroscopesSink m_gyro;
