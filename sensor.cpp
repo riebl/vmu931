@@ -1,5 +1,5 @@
-#include "vmu931_sensor.hpp"
-#include "vmu931_commands.hpp"
+#include "vmu931/sensor.hpp"
+#include "vmu931/commands.hpp"
 #include <algorithm>
 #include <cassert>
 #include <type_traits>

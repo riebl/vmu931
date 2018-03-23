@@ -1,5 +1,5 @@
-#include "vmu931_types.hpp"
-#include "vmu931_commands.hpp"
+#include "vmu931/types.hpp"
+#include "vmu931/commands.hpp"
 #include <cassert>
 #include <unordered_map>
 

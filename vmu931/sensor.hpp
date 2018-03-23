@@ -8,7 +8,7 @@
 #include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/serial_port.hpp>
 #include <boost/optional/optional.hpp>
-#include "vmu931_types.hpp"
+#include "types.hpp"
 
 namespace vmu931
 {

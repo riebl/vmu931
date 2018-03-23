@@ -1,8 +1,8 @@
 #include <iostream>
 #include <boost/asio.hpp>
-#include "vmu931_commands.hpp"
-#include "vmu931_sensor.hpp"
-#include "vmu931_types.hpp"
+#include "vmu931/commands.hpp"
+#include "vmu931/sensor.hpp"
+#include "vmu931/types.hpp"
 
 int main()
 {
