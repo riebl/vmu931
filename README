@@ -1,0 +1,3 @@
+This is a small C++11 library for the VMU931 Inertial Measurement Unit by Variense.
+Please note that this implementation is neither endorsed by nor affiliated with Variense.
+See the LICENSE file for legal details, i.e. the 3-clause BSD license.
