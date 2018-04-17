@@ -38,6 +38,7 @@ public:
     void set_streams(const std::unordered_set<char>&);
 
 private:
+    void read_timeout();
     void read();
     void write();
     bool parse();

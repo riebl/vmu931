@@ -66,18 +66,28 @@ Sensor::Sensor(boost::asio::serial_port&& port) :
     });
 }
 
+void Sensor::read_timeout()
+{
+    m_timer.expires_from_now(boost::posix_time::milliseconds(15));
+    m_timer.async_wait([this](const boost::system::error_code& ec) {
+        if (!ec) {
+            if (m_command.empty()) {
+                read_timeout();
+            } else {
+                // cancel async read (proceeds with write)
+                m_serial_port.cancel();
+            }
+        }
+    });
+}
+
 void Sensor::read()
 {
     assert(m_buffer.size() >= m_filled);
     uint8_t* bufptr = m_buffer.data() + m_filled;
     std::size_t buflen = m_buffer.size() - m_filled;
 
-    m_timer.expires_from_now(boost::posix_time::milliseconds(15));
-    m_timer.async_wait([this](const boost::system::error_code& ec) {
-        if (!ec && !m_command.empty()) {
-            m_serial_port.cancel();
-        }
-    });
+    read_timeout();
 
     assert(buflen > 0);
     m_serial_port.async_read_some(boost::asio::buffer(bufptr, buflen),
