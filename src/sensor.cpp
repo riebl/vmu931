@@ -70,19 +70,18 @@ void Sensor::read()
     uint8_t* bufptr = m_buffer.data() + m_filled;
     std::size_t buflen = m_buffer.size() - m_filled;
 
-    m_timer.expires_from_now(boost::posix_time::milliseconds(10));
+    m_timer.expires_from_now(boost::posix_time::milliseconds(15));
     m_timer.async_wait([this](const boost::system::error_code& ec) {
-        if (!ec && m_command.size() > 0) {
+        if (!ec && !m_command.empty()) {
             m_serial_port.cancel();
-            write();
         }
     });
 
     assert(buflen > 0);
     m_serial_port.async_read_some(boost::asio::buffer(bufptr, buflen),
         [this](const boost::system::error_code& ec, std::size_t bytes_transferred) {
+            m_filled += bytes_transferred;
             if (!ec) {
-                m_filled += bytes_transferred;
                 while (parse()) {}
                 if (m_command.empty()) {
                     read();
@@ -90,12 +89,15 @@ void Sensor::read()
                     m_timer.cancel();
                     write();
                 }
+            } else if (ec == boost::asio::error::operation_aborted) {
+                write();
             }
         });
 }
 
 void Sensor::write()
 {
+    assert(!m_command.empty());
     boost::asio::async_write(m_serial_port, boost::asio::buffer(m_command),
         [this](const boost::system::error_code& ec, std::size_t bytes_transferred) {
             if (!ec) {
@@ -103,7 +105,8 @@ void Sensor::write()
                 m_command.clear();
                 read();
             } else if (ec == boost::asio::error::operation_aborted) {
-                read();
+                m_command.erase(0, bytes_transferred);
+                m_command.empty() ? read() : write();
             }
         });
 }
