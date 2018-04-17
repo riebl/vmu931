@@ -61,7 +61,9 @@ T read_4d(const uint8_t* ptr)
 Sensor::Sensor(boost::asio::serial_port&& port) :
     m_serial_port(std::move(port)), m_timer(m_serial_port.get_io_service()), m_filled(0)
 {
-    read();
+    m_serial_port.get_io_service().post([this]() {
+        m_command.empty() ? read() : write();
+    });
 }
 
 void Sensor::read()
